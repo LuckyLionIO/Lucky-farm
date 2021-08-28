@@ -8,15 +8,17 @@ Smart contract for Lucky farming.
   
   contract that manages all the farming pool and rewards.
     
-    address >> 0x4B3D1608928d5f9CFCeF46523B3b08d18fE6C57c
+    address >> 0x01cA7763B9dF1a0bC5c0504b53eb61e8b694F70A
   
     solidity contract >> Masterchef.sol
+    
+    note : you can pull the harvest timpstamp by getting harvestTimpstamp(poolID) function in the Masterchef contract address
   
   ### LuckyToken
   
   Lucky governance token to be minted by the Masterchef.
     
-    address >> 0x59E111467fB1Fd91E37872cb0C242079B9F125cc
+    address >> 0x2977997472d4fa0570ECfA882A16048c0473953f
   
     solidity contract >> LuckyToken.sol
   
