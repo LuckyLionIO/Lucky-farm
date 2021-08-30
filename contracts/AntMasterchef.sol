@@ -261,8 +261,15 @@ contract MasterChef is Ownable, ReentrancyGuard {
             ant.mint(devAddress, antRewardForDev); //what number is this 30 >> 70   x/100 *74 = 9 >> x= 9/74*100
             //track the token that is minted to dev.
             mintedForDev = mintedForDev.add(antRewardForDev);
-            //mint to masterchef for user's reward.
-            ant.mint(address(this), antReward); //
+            if (antReward.add(ant.totalSupply()) > ant.cap() ) { 
+                uint256 remainedRewardForUser = ant.cap().sub(ant.totalSupply());
+                ant.mint(address(this),remainedRewardForUser);
+            }
+            else{
+                //mint to masterchef for user's reward.
+                ant.mint(address(this), antReward); //
+            }
+            
         }
         pool.accAntPerShare = pool.accAntPerShare.add(antReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
