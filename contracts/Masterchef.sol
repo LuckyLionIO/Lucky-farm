@@ -8,10 +8,24 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 import "./LuckyToken.sol";
 
+interface IMigratorChef {
+    // Perform LP token migration from legacy LuckyPool to the new one.
+    // Take the current LP token address and return the new LP token address.
+    // Migrator should have full access to the caller's LP token.
+    // Return the new LP token address.
+    //
+    // XXX Migrator must have allowance access to PancakeSwap LP tokens.
+    // CakeSwap must mint EXACTLY the same amount of CakeSwap LP tokens or
+    // else something bad will happen. Traditional PancakeSwap does not
+    // do that so be careful!
+    function migrate(IERC20 token) external returns (IERC20);
+    }
+    
 contract MasterChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    
     // Info of each user.
     struct UserInfo {
         uint256 amount;         // How many LP tokens the user has provided.
@@ -38,20 +52,27 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 accLuckyPerShare;   // Accumulated luckys per share, times 1e12. See below.
         uint16 depositFeeBP;      // Deposit fee in basis points
         uint256 harvestTimestamp;  // Harvest interval in unixtimestamp
+        uint256 farmStartDate; //the timestamp of farm opening for users to deposit.
     }
 
     // The lucky TOKEN!
     LuckyToken public lucky;
     // Dev address.
-    address public devAddress;
+    address public devAddress = 0x768a9C2109D810CD460E65319e1209723b59650B;
     // Deposit Fee address
-    address private feeAddress= 0x768a9C2109D810CD460E65319e1209723b59650B;
-    //owner's address
-    address private Owner = 0x49aE5637252FD7d716484E6D9488596322653d80;
+    address public feeAddress = 0x6dCFAB8B9d70e203D9B081651124766560C48558;
+    //WBNB pool
+    address public WBnbPool = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd ;
+    //BNBBUSD pool
+    address public BnbBusdPool = 0xe0e92035077c39594793e61802a350347c320cf2;
+    //UsdtBusdPool
+    address public UsdtBusdPool = 0x5126C1B8b4368c6F07292932451230Ba53a6eB7A;
     // lucky tokens created per block.
     uint256 public luckyPerBlock;
     // Bonus muliplier for early lucky makers.
     uint256 public constant BONUS_MULTIPLIER = 1;
+    // The migrator contract. It has a lot of power. Can only be set through governance (owner).
+    IMigratorChef public migrator;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -63,7 +84,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
     uint256 public startBlock;
     // Total locked up rewards
     uint256 public totalLockedUpRewards;
-    uint256 private mintedForDev;
+    uint256 private accumulatedRewardForDev;
+    uint256 private constant capRewardForDev = 9 * 10**6 * 10**8;
     uint256 private devMintingRatio;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
@@ -76,19 +98,14 @@ contract MasterChef is Ownable, ReentrancyGuard {
         LuckyToken _lucky,
         uint256 _startBlock,
         uint256 _luckyPerBlock,
-        IERC20 BNB,
-        IERC20 LUCKYBNB,
-        IERC20 LUCKYBUSD,
-        IERC20 BNBBUSD,
-        IERC20 USDTBUSD
-        
+        IERC20 luckyBNB,
+        IERC20 luckyBUSD
     ) {
         lucky = _lucky;
         startBlock = _startBlock;
         luckyPerBlock = _luckyPerBlock;
-
-        devAddress = msg.sender;
-        transferOwnership(Owner);
+        
+        transferOwnership(0x49aE5637252FD7d716484E6D9488596322653d80);
         
         //hardcode to set the lucky sole pool to be the first pool.
         poolInfo.push(PoolInfo({
@@ -97,64 +114,71 @@ contract MasterChef is Ownable, ReentrancyGuard {
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 0,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp +  8 hours,
+            //this is due to change of the pool opening date.
+            farmStartDate : block.timestamp + 5 minutes//24 hours
         }));
         
-        //LUCKYBUSD
+        //luckyBUSD
         poolInfo.push(PoolInfo({
-            lpToken: LUCKYBUSD,
+            lpToken: luckyBUSD,
             allocPoint: 3000,
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 0,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp +  8 hours,
+            farmStartDate : block.timestamp +5 minutes//24 hours
         }));
         
         //lucky-BNB
         poolInfo.push(PoolInfo({
-            lpToken: LUCKYBNB,
+            lpToken: luckyBNB,
             allocPoint: 4000,
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 0,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp +  8 hours,
+            farmStartDate : block.timestamp + 5 minutes//24 hours
         }));
 
         //BNB
         poolInfo.push(PoolInfo({
-            lpToken: BNB,
+            lpToken: IERC20(WBnbPool),
             allocPoint: 130,
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 200,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp +  8 hours,
+            farmStartDate : block.timestamp +5 minutes//24 hours
         }));
         
         //BNBBUSD
         poolInfo.push(PoolInfo({
-            lpToken: BNBBUSD,
+            lpToken: IERC20(BnbBusdPool),
             allocPoint: 800,
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 200,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp +  8 hours,
+            farmStartDate : block.timestamp + 5 minutes//24 hours
         }));
         
         //USDTBUSD
         poolInfo.push(PoolInfo({
-            lpToken: USDTBUSD,
+            lpToken: IERC20(UsdtBusdPool),
             allocPoint: 200,
             lastRewardBlock: startBlock,
             accLuckyPerShare: 0,
             depositFeeBP : 200,
-            harvestTimestamp: block.timestamp +  8 hours
+            harvestTimestamp: block.timestamp + 8 hours,
+            farmStartDate : block.timestamp + 5 minutes//24 hours
         }));
         
         //how much dev will get from minting
         devMintingRatio = 10;
         
-        //change according to the sum of initial allocpoint.
-        totalAllocPoint = 650+3000+4000+130+800+200;
+        //change according to the sum of initial allocpoint. 650+3000+4000+130+800+200 = 8780
+        totalAllocPoint = poolInfo[0].allocPoint.add(poolInfo[1].allocPoint).add(poolInfo[2].allocPoint).add(poolInfo[3].allocPoint).add(poolInfo[4].allocPoint).add(poolInfo[5].allocPoint);
     
 
     }
@@ -165,7 +189,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IERC20 _lpToken, uint16 _depositFeeBP, uint256 _harvestTimestamp, bool _withUpdate) public onlyOwner {
+    function add(uint256 _allocPoint, IERC20 _lpToken, uint16 _depositFeeBP, uint256 _harvestTimestamp,uint256 _farmStartDate, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "add: invalid deposit fee basis points");
         require(_harvestTimestamp >= block.timestamp, "add: invalid harvest interval");
         if (_withUpdate) {
@@ -179,12 +203,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
             lastRewardBlock: lastRewardBlock,
             accLuckyPerShare: 0,
             depositFeeBP: _depositFeeBP,
-            harvestTimestamp: _harvestTimestamp
+            harvestTimestamp: _harvestTimestamp,
+            farmStartDate : _farmStartDate
         }));
     }
 
     // Update the given pool's lucky allocation point and deposit fee. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, uint256 _harvestTimestamp, bool _withUpdate) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, uint256 _harvestTimestamp,uint256 _farmStartDate, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "set: invalid deposit fee basis points");
         require(_harvestTimestamp >= block.timestamp, "set: invalid harvest interval");
         if (_withUpdate) {
@@ -194,7 +219,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
         poolInfo[_pid].harvestTimestamp = _harvestTimestamp;
-        
+        poolInfo[_pid].farmStartDate = _farmStartDate;
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -231,7 +256,23 @@ contract MasterChef is Ownable, ReentrancyGuard {
             updatePool(pid);
         }
     }
+    // Set the migrator contract. Can only be called by the owner.
+    function setMigrator(IMigratorChef _migrator) public onlyOwner {
+        migrator = _migrator;
+    }
 
+    // Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
+    function migrate(uint256 _pid) public {
+        require(address(migrator) != address(0), "migrate: no migrator");
+        PoolInfo storage pool = poolInfo[_pid];
+        IERC20 lpToken = pool.lpToken;
+        uint256 bal = lpToken.balanceOf(address(this));
+        lpToken.safeApprove(address(migrator), bal);
+        IERC20 newLpToken = migrator.migrate(lpToken);
+        require(bal == newLpToken.balanceOf(address(this)), "migrate: bad");
+        pool.lpToken = newLpToken;
+    }
+    
     // Update reward variables of the given pool to be up-to-date.
     function updatePool(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
@@ -246,11 +287,42 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
         uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         //new one 
-        // check at final to mint exact Lucky to complete the round 9 million and 100 millions totalsupply 
+        // check at final to mint exact lucky to complete the round 9 million and 100 millions totalsupply 
         uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(74);
-        lucky.mint(devAddress, luckyRewardForDev); //what number is this 30 >> 70   x/100 *74 = 9 >> x= 9/74*100
-        mintedForDev = mintedForDev.add(luckyRewardForDev);
-        lucky.mint(address(this), luckyReward); //
+        //logic to prevent the minting exceeds the capped totalsupply
+        if (luckyRewardForDev.add(lucky.totalSupply()) > lucky.cap() ) {
+            uint256 remainingReward = lucky.cap().sub(lucky.totalSupply());
+            //in case that remainingReward > capped reward of dev.
+            if (remainingReward.add(accumulatedRewardForDev) > capRewardForDev) {
+                uint256 lastRemainingRewardForDev = capRewardForDev.sub(accumulatedRewardForDev);
+                lucky.mint(devAddress,lastRemainingRewardForDev);
+                accumulatedRewardForDev = accumulatedRewardForDev.add(lastRemainingRewardForDev);
+                //the rest is minted to users.
+                lucky.mint(address(this),remainingReward.sub(lastRemainingRewardForDev));
+            }
+            //normal case that dev's cap has not been reached yet.
+            else {
+                lucky.mint(devAddress, remainingReward);
+                //track the token that is minted to dev.
+                accumulatedRewardForDev = accumulatedRewardForDev.add(remainingReward);
+            }
+            
+        }
+        else {
+            //mint to dev address the full amount.
+            lucky.mint(devAddress, luckyRewardForDev); //what number is this 30 >> 70   x/100 *74 = 9 >> x= 9/74*100
+            //track the token that is minted to dev.
+            accumulatedRewardForDev = accumulatedRewardForDev.add(luckyRewardForDev);
+            if (luckyReward.add(lucky.totalSupply()) > lucky.cap() ) { 
+                uint256 remainingRewardForPools = lucky.cap().sub(lucky.totalSupply());
+                lucky.mint(address(this),remainingRewardForPools);
+            }
+            else{
+                //mint to masterchef for user's reward.
+                lucky.mint(address(this), luckyReward); //
+            }
+            
+        }
         pool.accLuckyPerShare = pool.accLuckyPerShare.add(luckyReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
@@ -258,6 +330,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Deposit LP tokens to MasterChef for lucky allocation.
     function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
+        require(pool.farmStartDate <= block.timestamp,"unable to deposit before the farm starts.");
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
 
@@ -370,5 +443,44 @@ contract MasterChef is Ownable, ReentrancyGuard {
     function getBlockNumber () public view returns(uint256){
         return block.number;
     }
-
+    
+    function getBlockTimestamp () public view returns(uint256){
+        return block.timestamp;
+    }
+    
+    //to change the owner of the Lucky. For testing purpose only. Will remove on production.
+    //comment this out if don't want to change LuckyToken's owner anymore.
+    function luckyTransferOwnership(address account) public onlyOwner{
+        lucky.transferOwnership(account);
+    }
+    
+    //to get the timestamp when user can harvest their reward.
+    function getHarvestTimestamp(uint8 _poolID) public view returns(uint256){
+        return poolInfo[_poolID].harvestTimestamp;
+    }
+    
+    //to get the timestamp when user can deposit into the that pool.
+    function getFarmStartDate(uint8 _poolID) public view returns(uint256){
+        return poolInfo[_poolID].farmStartDate;
+    }
+    //return countdown time in second of the pool id when user can harvest their reward.
+    function harvestCountDown(uint8 _poolID) public view returns(uint256){
+        if (poolInfo[_poolID].harvestTimestamp - block.timestamp >= 0 ){
+            return poolInfo[_poolID].harvestTimestamp - block.timestamp;
+        }
+        else{
+            return 0;
+        }
+        
+    }
+    //return countdown time in second of the pool id when user can deposit into that pool.
+    function farmStartCountdown(uint8 _poolID) public view returns(uint256){
+        if (poolInfo[_poolID].farmStartDate - block.timestamp >= 0 ){
+            return poolInfo[_poolID].farmStartDate - block.timestamp;
+        }
+        else{
+            return 0;
+        }
+        
+    }
 }
