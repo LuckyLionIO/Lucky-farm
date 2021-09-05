@@ -9,12 +9,12 @@ contract LuckyToken is ERC20, Ownable {
     
     string private _name = "Lucky";
     string private _symbol = "LUCKY";
-    uint8 private _decimals = 8;
+    uint8 private _decimals = 18;
     
-    uint256 private constant FAIR_LAUNCH = 1 * 1000000 * 10**8; //1 * 1000000 * 10**_decimals;
-    uint256 private constant WAR_CHEST = 5 * 1000000 * 10**8;
-    uint256 private constant ECOSYSTEM = 20 * 1000000 * 10**8;
-    uint256 private constant CAP = 100 * 1000000 * 10**8; //max supply
+    uint256 private constant FAIR_LAUNCH = 1 * 1000000 * 10**18; //1 * 1000000 * 10**_decimals;
+    uint256 private constant WAR_CHEST = 5 * 1000000 * 10**18;
+    uint256 private constant ECOSYSTEM = 20 * 1000000 * 10**18;
+    uint256 private constant CAP = 100 * 1000000 * 10**18; //max supply
     
     address Owner;
     address WarChest;
