@@ -14,9 +14,9 @@ interface IMigratorChef {
     // Migrator should have full access to the caller's LP token.
     // Return the new LP token address.
     //
-    // XXX Migrator must have allowance access to LuckyLion LP tokens.
+    // XXX Migrator must have allowance access to PancakeSwap LP tokens.
     // CakeSwap must mint EXACTLY the same amount of CakeSwap LP tokens or
-    // else something bad will happen. Traditional LuckyLion does not
+    // else something bad will happen. Traditional PancakeSwap does not
     // do that so be careful!
     function migrate(IERC20 token) external returns (IERC20);
     }
@@ -106,12 +106,17 @@ contract MasterChef is Ownable, ReentrancyGuard {
         SyrupBar _syrup,
         uint256 _startBlock,
         uint256 _luckyPerBlock,
+        ERC20 luckyBNB,
+        ERC20 luckyBUSD,
+        ERC20 _WBnbPool,
+        ERC20 _BnbBusdPool,
         ERC20 _UsdtBusdPool,
         uint256 _harvestIntervalInMinutes,
         uint256 _farmStartIntervalInMinutes
     ) {
         lucky = _lucky;
         syrup = _syrup;
+        startBlock = _startBlock;
         luckyPerBlock = _luckyPerBlock;
         WBnbPool = _WBnbPool;
         BnbBusdPool = _BnbBusdPool;
@@ -310,7 +315,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Deposit LP tokens to MasterChef for lucky allocation.
     function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
-        require(pool.farmStartDate <= block.timestamp,"unable to deposit before the farm starts.");
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(pool.farmStartDate <= block.timestamp,"unable to deposit before the farm starts.");
         if (!canHarvest(_pid) && _amount==0){
@@ -400,7 +404,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         feeAddress = _feeAddress;
     }
 
-    // LuckyLion has to add hidden dummy pools in order to alter the emission, here we make it simple and transparent to all.
+    // Pancake has to add hidden dummy pools in order to alter the emission, here we make it simple and transparent to all.
     function updateEmissionRate(uint256 _luckyPerBlock) public onlyOwner {
         massUpdatePools();
         emit EmissionRateUpdated(msg.sender, luckyPerBlock, _luckyPerBlock);
