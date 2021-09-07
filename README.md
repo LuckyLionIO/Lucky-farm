@@ -1,32 +1,17 @@
-# Lucky-farm
+# PanCake Farming 🥞
 
-Smart contract for Lucky farming.
+[![Actions Status](https://github.com/pancakeswap/pancake-farm/workflows/CI/badge.svg)](https://github.com/pancakeswap/pancake-farm/actions)
+[![codecov](https://codecov.io/gh/pancakeswap/pancake-farm/branch/master/graph/badge.svg?token=5XMLP74IR0)](https://codecov.io/gh/pancakeswap/pancake-farm)
 
-## deployed contracts on Binance smart chain Testnet
+https://pancakeswap.finance. Feel free to read the code. More details coming soon.
 
-  ### Masterchef 
-  
-  contract that manages all the farming pool and rewards.
-    
-    address >> 0x4B3D1608928d5f9CFCeF46523B3b08d18fE6C57c
-  
-    solidity contract >> Masterchef.sol
-  
-  ### LuckyToken
-  
-  Lucky governance token to be minted by the Masterchef.
-    
-    address >> 0x59E111467fB1Fd91E37872cb0C242079B9F125cc
-  
-    solidity contract >> LuckyToken.sol
-  
-  ### MockBNB (ERC20) 
-    
-  to be used as LP tokens for pool ID 1,2,3,4 and 5. Note that you can mint MockBNB by yourself in order to add the LP in the pool.
-    
-    address >> 0x5bfE5A9D987613Bd78a8C2F4EEcEF3baC02B045A 
-  
-    solidity contract >> MockBNB.sol
-  
-  
-  
+## Deployed Contracts / Hash
+
+### BSCMAINNET
+
+- CakeToken - https://bscscan.com/token/0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82
+- MasterChef - https://bscscan.com/address/0x73feaa1eE314F8c655E354234017bE2193C9E24E
+- (Uni|Cake)swapV2Factory - https://bscscan.com/address/0xBCfCcbde45cE874adCB698cC183deBcF17952812
+- (Uni|Cake)swapV2Router02 - https://bscscan.com/address/0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F
+- (Uni|Cake)swapV2Pair init code hash - `0xd0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66`
+- MultiCall - 0xE1dDc30f691CA671518090931e3bFC1184BFa4Aa
