@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "./LuckyToken.sol";
 
-// SyrupBar with Governance.
+// SyrupBar without Governance.
 contract SyrupBar is ERC20('SyrupBar Token', 'SYRUP'), Ownable {
     
     // The Lucky Token!
