@@ -11,9 +11,11 @@ contract SyrupBar is ERC20('SyrupBar Token', 'SYRUP'), Ownable {
     LuckyToken public lucky;
 
     constructor(
-        LuckyToken _lucky
+        LuckyToken _lucky,
+        address owner_
     ) {
         lucky = _lucky;
+        transferOwnership(owner_);
     }
 
     // Safe lucky transfer function, just in case if rounding error causes pool to not have enough CAKEs.

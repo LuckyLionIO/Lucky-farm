@@ -1,6 +1,4 @@
-# Lucky Farming 🥞
-
-
+# Lucky Farming
 
 ## Deployed Contracts / Hash
 
