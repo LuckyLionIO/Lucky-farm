@@ -243,9 +243,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
         // check at final to mint exact lucky to complete the round 9 million and 100 millions totalsupply 
         uint256 luckyRewardForDev = multiplier.mul(luckyPerBlock).mul(devMintingRatio).div(totalAllocPoint);
         //logic to prevent the minting exceeds the capped totalsupply
+        //1st case, reward for dev will exceed Lucky's totalSupply so we limit the minting amount to syrup.
         if (luckyRewardForDev.add(lucky.totalSupply()) > lucky.cap() ) {
             uint256 remainingReward = lucky.cap().sub(lucky.totalSupply());
-            //in case that remainingReward > capped reward of dev.
+            //in case that remainingReward > capped reward for dev.
             if (remainingReward.add(accumulatedRewardForDev) > capRewardForDev) {
                 uint256 lastRemainingRewardForDev = capRewardForDev.sub(accumulatedRewardForDev);
                 lucky.mint(devAddress,lastRemainingRewardForDev);
@@ -253,7 +254,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 //the rest is minted to users.
                 lucky.mint(address(syrup),lucky.cap().sub(lucky.totalSupply()));
             }
-            //normal case that dev's cap has not been reached yet.
+            //normal case that dev's caped reward has not been reached yet, but the totalSupply of Lucky is reached.
             else {
                 lucky.mint(devAddress, remainingReward);
                 //track the token that is minted to dev.
@@ -263,7 +264,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         }
         //supply cap was not reached and capRewardForDevev still has room to mint for.
         else {
-        
+            //capRewardForDev is reached.
             if (luckyRewardForDev.add(accumulatedRewardForDev) > capRewardForDev) {
                 uint256 lastRemainingRewardForDev = capRewardForDev.sub(accumulatedRewardForDev);
                 lucky.mint(devAddress,lastRemainingRewardForDev);
@@ -304,6 +305,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(pool.farmStartDate <= block.timestamp,"unable to deposit before the farm starts.");
+        //can not harvest(deposit 0) before the harvestTimestamp.
         if (!canHarvest(_pid) && _amount==0){
             require(pool.harvestTimestamp <= block.timestamp,"can not harvest before the harvestTimestamp" ); //newly added
         }
