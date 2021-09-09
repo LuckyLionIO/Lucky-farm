@@ -7,18 +7,22 @@ const MockERC20 = artifacts.require('libs/MockERC20');
 contract('MasterChef', ([alice, bob, carol,ohm,lemon,prem, dev, minter,owner,warchest,ecosystem,fee]) => {
     beforeEach(async () => {
         this.lucky = await LuckyToken.new(owner,warchest,ecosystem,{ from: minter });
-        this.syrup = await SyrupBar.new(this.lucky.address, { from: minter });
+        this.syrup = await SyrupBar.new(this.lucky.address, owner,{ from: minter });
         this.luckyBNB = await MockERC20.new('luckyBNB', 'luckyBNB', minter,'1000000', { from: minter });
         this.luckyBUSD = await MockERC20.new('luckyBUSD', 'luckyBUSD',minter, '1000000', { from: minter });
         this.WBnbPool = await MockERC20.new('WBnbPool', 'WBnbPool',minter, '1000000', { from: minter });
         this.BnbBusdPool = await MockERC20.new('BnbBusdPool', 'BnbBusdPool',minter, '1000000', { from: minter });
         this.UsdtBusdPool = await MockERC20.new('UsdtBusdPool', 'UsdtBusdPool',minter, '1000000', { from: minter });
         //we set luckyperblock = 100 lucky = 100000000000000000000 wei
-        this.chef = await MasterChef.new(this.lucky.address,this.syrup.address, '0', '100000000000000000000',this.luckyBNB.address,this.luckyBUSD.address,this.WBnbPool.address,this.BnbBusdPool.address,this.UsdtBusdPool.address,3,1,{ from: owner });
-        await this.chef.setDevAddress(dev, { from: owner });
-        await this.chef.setFeeAddress(fee, { from: owner });
+        this.chef = await MasterChef.new(this.lucky.address,this.syrup.address,owner,dev,fee, '0', '100000000000000000000',{ from: owner });
+        this.chef.add(6500,this.lucky.address,0, 3,1, true, { from: owner });
+        this.chef.add(30000,this.luckyBUSD.address,0, 3,1, true, { from: owner });
+        this.chef.add(40000,this.luckyBNB.address,0, 3,1, true, { from: owner });
+        this.chef.add(1300,this.WBnbPool.address,200, 3,1, true, { from: owner });
+        this.chef.add(8000,this.BnbBusdPool.address,200, 3,1, true, { from: owner });
+        this.chef.add(2000,this.UsdtBusdPool.address,200, 3,1, true, { from: owner });
         await this.lucky.transferOwnership(this.chef.address, { from: owner });
-        await this.syrup.transferOwnership(this.chef.address, { from: minter });
+        await this.syrup.transferOwnership(this.chef.address, { from: owner });
         
 
         await this.lucky.transfer(carol, '200', { from: warchest });
@@ -72,7 +76,7 @@ contract('MasterChef', ([alice, bob, carol,ohm,lemon,prem, dev, minter,owner,war
             assert.equal((await this.UsdtBusdPool.balanceOf(lemon)).toString(), '0');
             assert.equal((await this.lucky.balanceOf(this.chef.address)).toString(), '200');
             
-            //scroll the time to the harvestTimestamp 6mins
+            //scroll the time to the 3 6mins
             await time.increase("200")
 
             await time.advanceBlockTo("199")
@@ -117,7 +121,7 @@ contract('MasterChef', ([alice, bob, carol,ohm,lemon,prem, dev, minter,owner,war
 
   it('can not harvest before the defined harvest timestamp', async () => {
     
-    await this.chef.set("1","30000","0","16310199220","1631009422",true, { from: owner });
+    await this.chef.set("1","30000","0",3,1,true, { from: owner });
     //approve all the LP tokens before depositing to the masterchef.
     //Alice
     await this.luckyBUSD.approve(this.chef.address, '1000000000', { from: alice });
@@ -180,7 +184,7 @@ contract('MasterChef', ([alice, bob, carol,ohm,lemon,prem, dev, minter,owner,war
       await this.UsdtBusdPool.approve(this.chef.address, '100000000000', { from: lemon });
 
       //owner change the mintperblock to reach the maximum capacity of the LuckyToken
-      await this.chef.updateEmissionRate("1000000000000000000000000",{from:owner});
+      await this.chef.updateLuckyPerBlock("1000000000000000000000000",{from:owner});
 
       await time.increase("301") //increase the time to the farm opening time.
 
