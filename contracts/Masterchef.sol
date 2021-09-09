@@ -24,7 +24,6 @@ interface IMigratorChef {
 contract MasterChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-
     
     // Info of each user.
     struct UserInfo {
@@ -49,7 +48,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         IERC20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. luckys to distribute per block.
         uint256 lastRewardBlock;  // Last block number that luckys distribution occurs.
-        uint256 accLuckyPerShare;   // Accumulated luckys per share, times 1e20. See below.
+        uint256 accLuckyPerShare;   // Accumulated luckys per share, times 1e15. See below.
         uint16 depositFeeBP;      // Deposit fee in basis points
         uint256 harvestTimestamp;  // Harvest interval in unixtimestamp
         uint256 farmStartDate; //the timestamp of farm opening for users to deposit.
@@ -65,21 +64,12 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Deposit Fee address
     address public feeAddress;
     
-    //WBNB pool
-    ERC20 public WBnbPool;
-    //BNBBUSD pool
-    
-    ERC20 public BnbBusdPool;
-    //UsdtBusdPool
-    ERC20 public UsdtBusdPool;
     // lucky tokens created per block.
     uint256 public luckyPerBlock;
     // Bonus muliplier for early lucky makers.
     uint256 public constant BONUS_MULTIPLIER = 1;
     // The migrator contract. It has a lot of power. Can only be set through governance (owner).
     IMigratorChef public migrator;
-    uint256 private harvestTimestamp;
-    uint256 private farmStartTimestamp;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -98,44 +88,35 @@ contract MasterChef is Ownable, ReentrancyGuard {
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event EmissionRateUpdated(address indexed caller, uint256 previousAmount, uint256 newAmount);
+    event LuckyPerBlockUpdated(address indexed caller, uint256 previousAmount, uint256 newAmount);
     event RewardLockedUp(address indexed user, uint256 indexed pid, uint256 amountLockedUp);
- 
+    event RewardPaid(address indexed user,uint256 indexed totalRewards);
+    event PoolAdded(IERC20 lpToken,uint256 allocPoint,uint16 depositFeeBP,uint256 harvestTimestamp, uint256 farmStartTimestamp);
+    event PoolSet(uint256 pid,uint256 allocPoint,uint16 depositFeeBP,uint256 harvestTimestampInUnix, uint256 farmStartTimestampInUnix);
+    event DevMintingRatioSet(uint256 previousDevAllocPoint,uint256 newDevAllocPoint);
+    
     constructor(
         LuckyToken _lucky,
         SyrupBar _syrup,
+        address owner_,
+        address _devAddress,
+        address _feeAddress,
         uint256 _startBlock,
-        uint256 _luckyPerBlock,
-        ERC20 luckyBNB,
-        ERC20 luckyBUSD,
-        ERC20 _WBnbPool,
-        ERC20 _BnbBusdPool,
-        ERC20 _UsdtBusdPool,
-        uint256 _harvestIntervalInMinutes,
-        uint256 _farmStartIntervalInMinutes
+        uint256 _luckyPerBlock
     ) {
         lucky = _lucky;
         syrup = _syrup;
         startBlock = _startBlock;
         luckyPerBlock = _luckyPerBlock;
-        WBnbPool = _WBnbPool;
-        BnbBusdPool = _BnbBusdPool;
-        UsdtBusdPool = _UsdtBusdPool;
-        harvestTimestamp = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
-        farmStartTimestamp = block.timestamp + (_farmStartIntervalInMinutes *60);
-        
-        add(6500,_lucky,0, harvestTimestamp,farmStartTimestamp, true);
-        add(30000,luckyBUSD,0, harvestTimestamp,farmStartTimestamp, true);
-        add(40000,luckyBNB,0, harvestTimestamp,farmStartTimestamp, true);
-        add(1300,WBnbPool,200, harvestTimestamp,farmStartTimestamp, true);
-        add(8000,BnbBusdPool,200, harvestTimestamp,farmStartTimestamp, true);
-        add(2000,UsdtBusdPool,200, harvestTimestamp,farmStartTimestamp, true);
-        
+        devAddress = _devAddress;
+        feeAddress = _feeAddress;
+        transferOwnership(owner_);
         //this is how much allocpoint dev will get from minting
-        devMintingRatio = 12200;
+        //we treat dev as a pool that gets the rewards from its allocpoint but we don't include it in the poolInfo.
+        devMintingRatio = 12200; //note that 1x equal 1000 alloc point at the beginning.
         
-        //change according to the sum of initial allocpoint. 650+3000+4000+130+800+200 = 8780
-        totalAllocPoint = devMintingRatio.add(poolInfo[0].allocPoint.add(poolInfo[1].allocPoint).add(poolInfo[2].allocPoint).add(poolInfo[3].allocPoint).add(poolInfo[4].allocPoint).add(poolInfo[5].allocPoint));
+        //change according to the sum of initial allocpoint.
+        totalAllocPoint = devMintingRatio;
     
 
     }
@@ -146,9 +127,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
     
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IERC20 _lpToken, uint16 _depositFeeBP, uint256 _harvestTimestamp,uint256 _farmStartDate, bool _withUpdate) public onlyOwner {
+    //note that 1x equals 1000 alloc point at the beginning.
+    function add(uint256 _allocPoint, IERC20 _lpToken, uint16 _depositFeeBP, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "add: invalid deposit fee basis points");
-        require(_harvestTimestamp >= block.timestamp, "add: invalid harvest timestamp");
+        uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
+        uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -160,23 +143,26 @@ contract MasterChef is Ownable, ReentrancyGuard {
             lastRewardBlock: lastRewardBlock,
             accLuckyPerShare: 0,
             depositFeeBP: _depositFeeBP,
-            harvestTimestamp: _harvestTimestamp,
-            farmStartDate : _farmStartDate
+            harvestTimestamp: _harvestTimestampInUnix,
+            farmStartDate : _farmStartTimestampInUnix
         }));
+        emit PoolAdded(_lpToken,_allocPoint,_depositFeeBP,_harvestTimestampInUnix,_farmStartTimestampInUnix);
     }
 
     // Update the given pool's lucky allocation point and deposit fee. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, uint256 _harvestTimestamp,uint256 _farmStartDate, bool _withUpdate) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "set: invalid deposit fee basis points");
-        require(_harvestTimestamp >= block.timestamp, "set: invalid harvest interval");
+        uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
+        uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
         if (_withUpdate) {
             massUpdatePools();
         }
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
-        poolInfo[_pid].harvestTimestamp = _harvestTimestamp;
-        poolInfo[_pid].farmStartDate = _farmStartDate;
+        poolInfo[_pid].harvestTimestamp = _harvestTimestampInUnix;
+        poolInfo[_pid].farmStartDate = _farmStartTimestampInUnix;
+        emit PoolSet(_pid,_allocPoint,_depositFeeBP,_harvestTimestampInUnix,_farmStartTimestampInUnix);
     }
     
     //set the developer's allocation point.
@@ -184,6 +170,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (_withUpdate) {
             massUpdatePools();
         }
+        emit DevMintingRatioSet(devMintingRatio,_allocPoint);
         totalAllocPoint = totalAllocPoint.sub(devMintingRatio).add(_allocPoint);
         devMintingRatio = _allocPoint;
     } 
@@ -202,9 +189,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accLuckyPerShare = accLuckyPerShare.add(luckyReward.mul(1e20).div(lpSupply));
+            accLuckyPerShare = accLuckyPerShare.add(luckyReward.mul(1e15).div(lpSupply));
         }
-        uint256 pending = user.amount.mul(accLuckyPerShare).div(1e20).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(accLuckyPerShare).div(1e15).sub(user.rewardDebt);
         return pending.add(user.rewardLockedUp);
     }
 
@@ -308,7 +295,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 
             }
         }
-        pool.accLuckyPerShare = pool.accLuckyPerShare.add(luckyReward.mul(1e20).div(lpSupply));
+        pool.accLuckyPerShare = pool.accLuckyPerShare.add(luckyReward.mul(1e15).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
@@ -333,7 +320,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 user.amount = user.amount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e20);
+        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e15);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -348,7 +335,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e20);
+        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e15);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
@@ -369,7 +356,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        uint256 pending = user.amount.mul(pool.accLuckyPerShare).div(1e20).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(pool.accLuckyPerShare).div(1e15).sub(user.rewardDebt);
         if (canHarvest(_pid)) {
             if (pending > 0 || user.rewardLockedUp > 0) {
                 uint256 totalRewards = pending.add(user.rewardLockedUp);
@@ -380,6 +367,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
                 // send rewards
                 safeLuckyTransfer(msg.sender, totalRewards);
+                emit RewardPaid(msg.sender,totalRewards);
             }
         } else if (pending > 0) {
             user.rewardLockedUp = user.rewardLockedUp.add(pending);
@@ -405,9 +393,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Pancake has to add hidden dummy pools in order to alter the emission, here we make it simple and transparent to all.
-    function updateEmissionRate(uint256 _luckyPerBlock) public onlyOwner {
+    function updateLuckyPerBlock(uint256 _luckyPerBlock) public onlyOwner {
         massUpdatePools();
-        emit EmissionRateUpdated(msg.sender, luckyPerBlock, _luckyPerBlock);
+        emit LuckyPerBlockUpdated(msg.sender, luckyPerBlock, _luckyPerBlock);
         //this is the new one
         uint256 prevLuckyPerBlock = luckyPerBlock;
         if (prevLuckyPerBlock !=_luckyPerBlock){
@@ -420,12 +408,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
     
     function getBlockTimestamp () public view returns(uint256){
         return block.timestamp;
-    }
-    
-    //to change the owner of the Lucky. For testing purpose only. Will remove on production.
-    //comment this out if don't want to change LuckyToken's owner anymore.
-    function luckyTransferOwnership(address account) public onlyOwner{
-        lucky.transferOwnership(account);
     }
     
     //return countdown time in second of the pool id when user can harvest their reward.
