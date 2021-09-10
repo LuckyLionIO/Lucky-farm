@@ -111,12 +111,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
         devAddress = _devAddress;
         feeAddress = _feeAddress;
         transferOwnership(owner_);
-        //this is how much allocpoint dev will get from minting
-        //we treat dev as a pool that gets the rewards from its allocpoint but we don't include it in the poolInfo.
-        devMintingRatio = 12200; //note that 1x equal 1000 alloc point at the beginning.
-        
-        //change according to the sum of initial allocpoint.
-        totalAllocPoint = devMintingRatio;
     
 
     }
@@ -165,14 +159,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
         emit PoolSet(_pid,_allocPoint,_depositFeeBP,_harvestTimestampInUnix,_farmStartTimestampInUnix);
     }
     
-    //set the developer's allocation point.
-    function setDevMintingRatio(uint256 _allocPoint,bool _withUpdate) public onlyOwner {
+    //set the developer's minting reward ratio.
+    function setDevMintingRatio(uint256 _percent,bool _withUpdate) public onlyOwner {
         if (_withUpdate) {
             massUpdatePools();
         }
-        emit DevMintingRatioSet(devMintingRatio,_allocPoint);
-        totalAllocPoint = totalAllocPoint.sub(devMintingRatio).add(_allocPoint);
-        devMintingRatio = _allocPoint;
+        emit DevMintingRatioSet(devMintingRatio,_percent);
+        devMintingRatio = _percent;
     } 
     
     // Return reward multiplier over the given _from to _to block.
