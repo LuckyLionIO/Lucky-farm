@@ -93,7 +93,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
     event RewardPaid(address indexed user,uint256 indexed totalRewards);
     event PoolAdded(IERC20 lpToken,uint256 allocPoint,uint16 depositFeeBP,uint256 harvestTimestamp, uint256 farmStartTimestamp);
     event PoolSet(uint256 pid,uint256 allocPoint,uint16 depositFeeBP,uint256 harvestTimestampInUnix, uint256 farmStartTimestampInUnix);
-    event DevMintingRatioSet(uint256 previousDevAllocPoint,uint256 newDevAllocPoint);
     
     constructor(
         LuckyToken _lucky,
@@ -110,9 +109,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
         luckyPerBlock = _luckyPerBlock;
         devAddress = _devAddress;
         feeAddress = _feeAddress;
+        devMintingRatio = 125; //12.5%
         transferOwnership(owner_);
-    
-
     }
 
     function poolLength() external view returns (uint256) {
@@ -158,15 +156,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
         poolInfo[_pid].farmStartDate = _farmStartTimestampInUnix;
         emit PoolSet(_pid,_allocPoint,_depositFeeBP,_harvestTimestampInUnix,_farmStartTimestampInUnix);
     }
-    
-    //set the developer's minting reward ratio.
-    function setDevMintingRatio(uint256 _percent,bool _withUpdate) public onlyOwner {
-        if (_withUpdate) {
-            massUpdatePools();
-        }
-        emit DevMintingRatioSet(devMintingRatio,_percent);
-        devMintingRatio = _percent;
-    } 
     
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
@@ -234,7 +223,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         //new one 
         // check at final to mint exact lucky to complete the round 9 million and 100 millions totalsupply 
-        uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(100);
+        uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(1000);
         //logic to prevent the minting exceeds the capped totalsupply
         //1st case, reward for dev will exceed Lucky's totalSupply so we limit the minting amount to syrup.
         if (luckyRewardForDev.add(lucky.totalSupply()) > lucky.cap() ) {
