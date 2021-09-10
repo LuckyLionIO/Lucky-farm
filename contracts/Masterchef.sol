@@ -241,7 +241,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         //new one 
         // check at final to mint exact lucky to complete the round 9 million and 100 millions totalsupply 
-        uint256 luckyRewardForDev = multiplier.mul(luckyPerBlock).mul(devMintingRatio).div(totalAllocPoint);
+        uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(100);
         //logic to prevent the minting exceeds the capped totalsupply
         //1st case, reward for dev will exceed Lucky's totalSupply so we limit the minting amount to syrup.
         if (luckyRewardForDev.add(lucky.totalSupply()) > lucky.cap() ) {
