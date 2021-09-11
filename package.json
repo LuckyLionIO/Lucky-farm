@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "migrate": "",
     "compile": "npx builder compile",
     "test": "npx builder test",
     "coverage": "npx builder coverage"
