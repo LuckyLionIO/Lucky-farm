@@ -98,6 +98,7 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
     assert.equal((await this.lucky.balanceOf(prem)).toString(), '2549999999999999999999') //should be 2550000000000000000000, but the system deduct due to mathematics calculations
     assert.equal((await this.lucky.balanceOf(ohm)).toString(), '2549999999999999999999')
     assert.equal((await this.lucky.balanceOf(lemon)).toString(), '2549999999999999999999')
+    assert.equal((await this.lucky.balanceOf(dev)).toString(), '2125000000000000000000')
   })
 
   it('can not deposit before farm starts', async () => {
