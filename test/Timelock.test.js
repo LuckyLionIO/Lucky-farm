@@ -64,22 +64,25 @@ contract('Timelock', ([alice, carol, dev, minter, owner, warchest, ecosystem, fe
     it('should also work with MasterChef', async () => {
         this.lp1 = await MockERC20.new('LPToken', 'LP', minter, '1000000', { from: minter })
         this.syrup = await SyrupBar.new(this.lucky.address, owner,{ from: minter });
+        this.luckyBUSD = await MockERC20.new('luckyBUSD', 'luckyBUSD', minter, '1000000', { from: minter })
         this.chef = await MasterChef.new(
             this.lucky.address,
             this.syrup.address,
+            this.luckyBUSD.address,
             owner,
             dev,
-            fee,
             '0',
             '100000000000000000000',
+            3,
+            1,
             { from: owner }
           )
         await this.lucky.transferOwnership(this.chef.address, { from: owner });
         await this.syrup.transferOwnership(this.chef.address, { from: owner });
-        await this.chef.add('100', this.lp1.address, 0, 0, 0, true, { from: owner });
+        await this.chef.add('100', this.lp1.address, 0, 0, true, { from: owner });
         await this.chef.transferOwnership(this.timelock.address, { from: owner });
         await expectRevert(
-            this.chef.add('100', this.lp1.address, 0, 0, 0, true, { from: owner }),
+            this.chef.add('100', this.lp1.address, 0, 0, true, { from: owner }),
             "revert Ownable: caller is not the owner",
         );
 
@@ -94,9 +97,9 @@ contract('Timelock', ([alice, carol, dev, minter, owner, warchest, ecosystem, fe
             encodeParameters(['address'], [minter]), eta, { from: owner },
         );
         await expectRevert(
-            this.chef.add('100', this.lp1.address, 0, 0, 0, true, { from: owner }),
+            this.chef.add('100', this.lp1.address, 0, 0, true, { from: owner }),
             "revert Ownable: caller is not the owner",
         );
-        await this.chef.add('100', this.lp1.address, 0, 0, 0, true, { from: minter })
+        await this.chef.add('100', this.lp1.address, 0, 0, true, { from: minter })
     });
 });

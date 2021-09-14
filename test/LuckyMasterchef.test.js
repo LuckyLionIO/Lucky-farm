@@ -24,12 +24,11 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
     )
     await this.lucky.transferOwnership(this.chef.address, { from: owner })
     await this.syrup.transferOwnership(this.chef.address, { from: owner })
-    
+
     await this.luckyBUSD.transfer(alice, '200', { from: minter })
     await this.lucky.transfer(carol, '200', { from: warchest })
-    
   })
-  it.only('real case have all the pools deposit and withdraw', async () => {
+  it('real case have all the pools deposit and withdraw', async () => {
     //approve all the LP tokens before depositing to the masterchef.
     //
     await this.lucky.approve(this.chef.address, '100000', { from: carol })
@@ -38,15 +37,13 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
     await time.increase('61')
     await time.advanceBlockTo('29')
 
-    assert.equal((await this.luckyBUSD.balanceOf(alice)).toString(), '200')
     await this.chef.deposit(0, '100', { from: alice })
     assert.equal((await this.chef.getBlockNumber()).toString(), '30')
     await this.chef.deposit(1, '100', { from: carol })
     assert.equal((await this.chef.getBlockNumber()).toString(), '31')
-    
+
     await this.chef.deposit(0, '100', { from: alice })
     await this.chef.deposit(1, '100', { from: carol })
-    
 
     assert.equal((await this.lucky.balanceOf(carol)).toString(), '0')
     assert.equal((await this.luckyBUSD.balanceOf(alice)).toString(), '0')
@@ -59,9 +56,9 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
 
     await this.chef.withdraw(0, '200', { from: alice }) //200
     await this.chef.withdraw(1, '200', { from: carol }) //201
-    assert.equal((await this.lucky.balanceOf(alice)).toString(), '14166666666666666667000')
-    assert.equal((await this.lucky.balanceOf(carol)).toString(), '2833333333333333333000')
-    assert.equal((await this.lucky.balanceOf(dev)).toString(), '2125000000000000000000')
+    assert.equal((await this.lucky.balanceOf(alice)).toString(), '14166666666666666666666')
+    assert.equal((await this.lucky.balanceOf(carol)).toString(), '2833333333333333333533')
+    assert.equal((await this.lucky.balanceOf(dev)).toString(), '2124999999999999999999')
   })
 
   it('can not deposit before farm starts', async () => {
@@ -93,40 +90,21 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
 
   it('should allow only owner to update dev', async () => {
     //set the dev address
-
     assert.equal((await this.chef.devAddress()).valueOf(), dev)
     await expectRevert(this.chef.setDevAddress(bob, { from: bob }), 'Ownable: caller is not the owner')
     await this.chef.setDevAddress(bob, { from: owner })
     assert.equal((await this.chef.devAddress()).valueOf(), bob)
     await this.chef.setDevAddress(dev, { from: owner })
     assert.equal((await this.chef.devAddress()).valueOf(), dev)
-
   })
 
   it("Masterchef stops to mint when Lucky's cap is reached", async () => {
     //approve all the LP tokens before depositing to the masterchef.
     //Alice
-    await this.lucky.approve(this.chef.address, '100', { from: alice })
-    await this.luckyBNB.approve(this.chef.address, '100', { from: alice })
     await this.luckyBUSD.approve(this.chef.address, '100', { from: alice })
-    await this.WBnbPool.approve(this.chef.address, '100', { from: alice })
-    await this.BnbBusdPool.approve(this.chef.address, '100', { from: alice })
-    await this.UsdtBusdPool.approve(this.chef.address, '100', { from: alice })
-    //Bob
-    await this.lucky.approve(this.chef.address, '100', { from: bob })
-    await this.luckyBNB.approve(this.chef.address, '100', { from: bob })
-    await this.luckyBUSD.approve(this.chef.address, '100', { from: bob })
-    await this.WBnbPool.approve(this.chef.address, '100', { from: bob })
-    await this.BnbBusdPool.approve(this.chef.address, '100', { from: bob })
-    await this.UsdtBusdPool.approve(this.chef.address, '100', { from: bob })
+
     //carol
     await this.lucky.approve(this.chef.address, '100', { from: carol })
-    //prem
-    await this.WBnbPool.approve(this.chef.address, '100000000000', { from: prem })
-    //ohm
-    await this.BnbBusdPool.approve(this.chef.address, '100000000000', { from: ohm })
-    //lemon
-    await this.UsdtBusdPool.approve(this.chef.address, '100000000000', { from: lemon })
 
     //owner change the mintperblock to reach the maximum capacity of the LuckyToken
     await this.chef.updateLuckyPerBlock('1000000000000000000000000', { from: owner })
@@ -135,33 +113,16 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
     //deposit to the luckyBusd farm
     //alice
     await time.advanceBlockTo('2000')
-    await this.chef.deposit(0, '50', { from: carol })
-    await this.chef.deposit(0, '50', { from: carol })
+    await this.chef.deposit(1, '50', { from: carol })
+    await this.chef.deposit(1, '50', { from: carol })
     assert.equal((await this.lucky.balanceOf(this.chef.address)).toString(), '100')
-    await this.chef.deposit(1, '50', { from: alice })
-    await this.chef.deposit(1, '50', { from: alice })
-    await this.chef.deposit(2, '50', { from: bob }) //block 501
-    await this.chef.deposit(2, '50', { from: bob }) //block 502
-    await this.chef.deposit(3, '50', { from: prem })
-    await this.chef.deposit(3, '50', { from: prem })
-    await this.chef.deposit(4, '50', { from: ohm })
-    await this.chef.deposit(4, '50', { from: ohm })
-    await this.chef.deposit(5, '50', { from: lemon })
-    await this.chef.deposit(5, '50', { from: lemon })
+    await this.chef.deposit(0, '50', { from: alice })
+    await this.chef.deposit(0, '50', { from: alice })
 
     await time.advanceBlockTo('2100') //increase block to the first hour in blocks unit
     //withdraw from the farm and also collect the reward.
-    await this.chef.withdraw(1, '100', { from: alice }) //withdraw to also get the reward along with the withdrawal amount.
-    await this.chef.withdraw(2, '100', { from: bob })
-    await this.chef.withdraw(3, '98', { from: prem })
-    await this.chef.withdraw(4, '98', { from: ohm }) //withdraw to also get the reward along with the withdrawal amount.
-    await this.chef.withdraw(5, '98', { from: lemon })
-    await this.chef.withdraw(0, '100', { from: carol })
-
-    //check LP tokens balance of all users after withdrawing when lucky is fully minted.;
-    assert.equal((await this.WBnbPool.balanceOf(fee)).toString(), '2') //2000+4.81m
-    assert.equal((await this.BnbBusdPool.balanceOf(fee)).toString(), '2')
-    assert.equal((await this.UsdtBusdPool.balanceOf(fee)).toString(), '2')
+    await this.chef.withdraw(0, '100', { from: alice }) //withdraw to also get the reward along with the withdrawal amount.
+    await this.chef.withdraw(1, '100', { from: carol })
 
     //check lucky tokens balance
     assert.equal((await this.lucky.balanceOf(dev)).toString(), '9000000000000000000000000')
