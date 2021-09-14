@@ -21,13 +21,13 @@ interface IMigratorChef {
     function migrate(IERC20 token) external returns (IERC20);
     }
     
-// XXX decrease pool to 2 and not have have deposit fee anymore.    
+
 contract MasterChef is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;// @note NO CHANGE
-    using SafeERC20 for IERC20;// @note NO CHANGE
+    using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     
     // Info of each user.
-    struct UserInfo { // @note NO CHANGE
+    struct UserInfo { 
         uint256 amount;         // How many LP tokens the user has provided.
         uint256 rewardDebt;     // Reward debt. See explanation below.
         uint256 rewardLockedUp;  // Reward locked up.
@@ -42,50 +42,48 @@ contract MasterChef is Ownable, ReentrancyGuard {
         //   2. User receives the pending reward sent to his/her address.
         //   3. User's `amount` gets updated.
         //   4. User's `rewardDebt` gets updated.
-    }// @note NO CHANGE
+    }
 
     // Info of each pool.
-    // @fixme decrease pool to 2 and not have have deposit fee anymore.    
     struct PoolInfo {
         IERC20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. luckys to distribute per block.
         uint256 lastRewardBlock;  // Last block number that luckys distribution occurs.
-        uint256 accLuckyPerShare;   // Accumulated luckys per share, times 1e15. See below.
+        uint256 accLuckyPerShare;   // Accumulated luckys per share, times 1e12. See below.
         uint256 harvestTimestamp;  // Harvest interval in unixtimestamp
         uint256 farmStartDate; //the timestamp of farm opening for users to deposit.
     }
 
     // The lucky TOKEN!
-    LuckyToken public lucky;// @note NO CHANGE
+    LuckyToken public lucky;
     // The SYRUP TOKEN!
-    SyrupBar public syrup;// @note NO CHANGE
+    SyrupBar public syrup;
     // Dev address.
-    address public devAddress ;// @note NO CHANGE
-    
+    address public devAddress ;
     //declare the luckyBusd instance here
     IERC20 public luckyBusd ;
     
     // lucky tokens created per block.
-    uint256 public luckyPerBlock;// @note NO CHANGE
+    uint256 public luckyPerBlock;
     // Bonus muliplier for early lucky makers.
-    uint256 public constant BONUS_MULTIPLIER = 1;// @note NO CHANGE
+    uint256 public constant BONUS_MULTIPLIER = 1;
     // The migrator contract. It has a lot of power. Can only be set through governance (owner).
-    IMigratorChef public migrator;// @note NO CHANGE
+    IMigratorChef public migrator;
 
     // Info of each pool.
-    PoolInfo[] public poolInfo;// @note NO CHANGE
+    PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
-    mapping(uint256 => mapping(address => UserInfo)) public userInfo;// @note NO CHANGE
+    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     // Total allocation points. Must be the sum of all allocation points in all pools.
-    uint256 public totalAllocPoint = 0;// @note NO CHANGE
+    uint256 public totalAllocPoint = 0;
     // The block number when lucky mining starts.
-    uint256 public startBlock;// @note NO CHANGE
+    uint256 public startBlock;
     // Total locked up rewards
-    uint256 public totalLockedUpRewards;// @note NO CHANGE
-    uint256 private accumulatedRewardForDev;// @note NO CHANGE
-    uint256 private constant capRewardForDev = 9 * 10**6 * 10**18;// @note NO CHANGE
-    uint256 private devMintingRatio;// @note NO CHANGE
-    // @note NO CHANGE
+    uint256 public totalLockedUpRewards;
+    uint256 private accumulatedRewardForDev;
+    uint256 private constant capRewardForDev = 9 * 10**6 * 10**18;
+    uint256 private devMintingRatio;
+    
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -94,10 +92,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     event RewardPaid(address indexed user,uint256 indexed totalRewards);
     event PoolAdded(IERC20 lpToken,uint256 allocPoint,uint256 harvestTimestamp, uint256 farmStartTimestamp);
     event PoolSet(uint256 pid,uint256 allocPoint,uint256 harvestTimestampInUnix, uint256 farmStartTimestampInUnix);
-    // note NO CHANGE
-
-
-
+    
     constructor(
         LuckyToken _lucky,
         SyrupBar _syrup,
@@ -117,20 +112,19 @@ contract MasterChef is Ownable, ReentrancyGuard {
         devAddress = _devAddress;
         devMintingRatio = 125; //12.5%
         transferOwnership(owner_);
-        //add the pools 
+
+        //add the pools
+        add(40000,luckyBusd,_harvestIntervalInMinutes,_farmStartIntervalInMinutes,true); 
         add(8000,lucky,_harvestIntervalInMinutes,_farmStartIntervalInMinutes,true);
-        add(40000,luckyBusd,_harvestIntervalInMinutes,_farmStartIntervalInMinutes,true);
     }
 
-    // @note NO CHANGE
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
-    }// @note NO CHANGE
+    }
     
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
     //note that 1x equals 1000 alloc point at the beginning.
-    // FIXME decrease pool to 2 and not have have deposit fee anymore.    
     function add(uint256 _allocPoint, IERC20 _lpToken, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
         uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
         uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
@@ -148,11 +142,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
             farmStartDate : _farmStartTimestampInUnix
         }));
         emit PoolAdded(_lpToken,_allocPoint,_harvestTimestampInUnix,_farmStartTimestampInUnix);
-    }// FIXME decrease pool to 2 and not have have deposit fee anymore.    
+    }    
 
-
-    // Update the given pool's lucky allocation point and deposit fee. Can only be called by the owner.
-    // FIXME decrease pool to 2 and not have have deposit fee anymore.
+    // Update the given pool's lucky allocation point. Can only be called by the owner.
     function set(uint256 _pid, uint256 _allocPoint, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
         uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
         uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
@@ -164,16 +156,14 @@ contract MasterChef is Ownable, ReentrancyGuard {
         poolInfo[_pid].harvestTimestamp = _harvestTimestampInUnix;
         poolInfo[_pid].farmStartDate = _farmStartTimestampInUnix;
         emit PoolSet(_pid,_allocPoint,_harvestTimestampInUnix,_farmStartTimestampInUnix);
-    }// FIXME decrease pool to 2 and not have have deposit fee anymore.
+    }
     
     // Return reward multiplier over the given _from to _to block.
-    // @note NO CHANGE
     function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
         return _to.sub(_from).mul(BONUS_MULTIPLIER);
-    }// @note NO CHANGE
+    }
 
     // View function to see pending luckys on frontend.
-    // @note NO CHANGE
     function pendingLucky(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
@@ -182,36 +172,32 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accLuckyPerShare = accLuckyPerShare.add(luckyReward.mul(1e15).div(lpSupply));
+            accLuckyPerShare = accLuckyPerShare.add(luckyReward.mul(1e12).div(lpSupply));
         }
-        uint256 pending = user.amount.mul(accLuckyPerShare).div(1e15).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(accLuckyPerShare).div(1e12).sub(user.rewardDebt);
         return pending.add(user.rewardLockedUp);
-    }// @note NO CHANGE
+    }
 
     // View function to see if user can harvest luckys.
-    // @note NO CHANGE
     function canHarvest(uint256 _pid) public view returns (bool) {
         //UserInfo storage user = userInfo[_pid][_user];
         PoolInfo storage pool = poolInfo[_pid];
         return block.timestamp >= pool.harvestTimestamp;
-    }// @note NO CHANGE
+    }
 
     // Update reward variables for all pools. Be careful of gas spending!
-    // @note NO CHANGE
     function massUpdatePools() public {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
             updatePool(pid);
         }
-    }// @note NO CHANGE
+    }
     // Set the migrator contract. Can only be called by the owner.
-    // @note NO CHANGE
     function setMigrator(IMigratorChef _migrator) public onlyOwner {
         migrator = _migrator;
-    }// @note NO CHANGE
+    }
 
     // Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
-    // @note NO CHANGE
     function migrate(uint256 _pid) public {
         require(address(migrator) != address(0), "migrate: no migrator");
         PoolInfo storage pool = poolInfo[_pid];
@@ -221,10 +207,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
         IERC20 newLpToken = migrator.migrate(lpToken);
         require(bal == newLpToken.balanceOf(address(this)), "migrate: bad");
         pool.lpToken = newLpToken;
-    }// @note NO CHANGE
+    }
     
     // Update reward variables of the given pool to be up-to-date.
-    // @note NO CHANGE
     function updatePool(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         if (block.number <= pool.lastRewardBlock) {
@@ -294,12 +279,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 
             }
         }
-        pool.accLuckyPerShare = pool.accLuckyPerShare.add(luckyReward.mul(1e15).div(lpSupply));
+        pool.accLuckyPerShare = pool.accLuckyPerShare.add(luckyReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
-    }// @note NO CHANGE
+    }
 
     // Deposit LP tokens to MasterChef for lucky allocation.
-    // @note NO CHANGE
     function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -314,12 +298,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
             user.amount = user.amount.add(_amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e15);
+        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
-    }// @note NO CHANGE
+    }
 
     // Withdraw LP tokens from MasterChef.
-    // @note NO CHANGE
     function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -330,12 +313,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e15);
+        user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
-    }// @note NO CHANGE
+    }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    // @note NO CHANGE
     function emergencyWithdraw(uint256 _pid) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -345,15 +327,14 @@ contract MasterChef is Ownable, ReentrancyGuard {
         user.rewardLockedUp = 0;
         pool.lpToken.safeTransfer(address(msg.sender), amount);
         emit EmergencyWithdraw(msg.sender, _pid, amount);
-    }// @note NO CHANGE
+    }
 
     // Pay or lockup pending luckys.
-    // @note NO CHANGE
     function payOrLockupPendingLucky(uint256 _pid) internal {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        uint256 pending = user.amount.mul(pool.accLuckyPerShare).div(1e15).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(pool.accLuckyPerShare).div(1e12).sub(user.rewardDebt);
         if (canHarvest(_pid)) {
             if (pending > 0 || user.rewardLockedUp > 0) {
                 uint256 totalRewards = pending.add(user.rewardLockedUp);
@@ -371,23 +352,20 @@ contract MasterChef is Ownable, ReentrancyGuard {
             totalLockedUpRewards = totalLockedUpRewards.add(pending);
             emit RewardLockedUp(msg.sender, _pid, pending);
         }
-    }// @note NO CHANGE
+    }
 
     // Safe lucky transfer function, just in case if rounding error causes pool to not have enough luckys.
-    // @note NO CHANGE
     function safeLuckyTransfer(address _to, uint256 _amount) internal {
         syrup.safeLuckyTransfer(_to, _amount);
-    }// @note NO CHANGE
+    }
 
     // Update dev address by the previous dev.
-    // @note NO CHANGE
     function setDevAddress(address _devAddress) public onlyOwner{
         require(_devAddress != address(0), "setDevAddress: ZERO");
         devAddress = _devAddress;
-    }// @note NO CHANGE
+    }
 
     // Pancake has to add hidden dummy pools in order to alter the emission, here we make it simple and transparent to all.
-    // @note NO CHANGE
     function updateLuckyPerBlock(uint256 _luckyPerBlock) public onlyOwner {
         massUpdatePools();
         emit LuckyPerBlockUpdated(msg.sender, luckyPerBlock, _luckyPerBlock);
@@ -396,20 +374,17 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (prevLuckyPerBlock !=_luckyPerBlock){
             luckyPerBlock = _luckyPerBlock;
         }
-    }// @note NO CHANGE
+    }
 
-    // @note NO CHANGE
     function getBlockNumber () public view returns(uint256){
         return block.number;
-    }// @note NO CHANGE
+    }
     
-    // @note NO CHANGE
     function getBlockTimestamp () public view returns(uint256){
         return block.timestamp;
-    }// @note NO CHANGE
+    }
     
     //return countdown time in second of the pool id when user can harvest their reward.
-    // @note NO CHANGE
     function harvestCountdown(uint8 _poolID) public view returns(uint256){
         if (poolInfo[_poolID].harvestTimestamp >=block.timestamp ){
             return poolInfo[_poolID].harvestTimestamp - block.timestamp;
@@ -417,10 +392,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
         else{  
             return 0;
         }
-    }// @note NO CHANGE
+    }
 
     //return countdown time in second of the pool id when user can deposit into that pool.
-    // @note NO CHANGE
     function farmStartCountdown(uint8 _poolID) public view returns(uint256){
         if (poolInfo[_poolID].farmStartDate >= block.timestamp ){
             return poolInfo[_poolID].farmStartDate - block.timestamp;
@@ -428,5 +402,5 @@ contract MasterChef is Ownable, ReentrancyGuard {
         else{
             return 0;
         }
-    }// @note NO CHANGE
+    }
 }
