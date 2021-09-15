@@ -110,7 +110,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         startBlock = _startBlock;
         luckyPerBlock = _luckyPerBlock;
         devAddress = _devAddress;
-        devMintingRatio = 125; //12.5%
+        devMintingRatio = 1385; //13.85%
         transferOwnership(owner_);
 
         //add the pools
@@ -224,7 +224,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 luckyReward = multiplier.mul(luckyPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         //new one 
         // check at final to mint exact lucky to complete the round 9 million and 100 millions totalsupply 
-        uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(1000);
+        uint256 luckyRewardForDev = luckyReward.mul(devMintingRatio).div(10000);
         //logic to prevent the minting exceeds the capped totalsupply
         //1st case, reward for dev will exceed Lucky's totalSupply so we limit the minting amount to syrup.
         if (luckyRewardForDev.add(lucky.totalSupply()) > lucky.cap() ) {

@@ -58,7 +58,7 @@ contract('MasterChef', ([alice, bob, carol, ohm, lemon, prem, dev, minter, owner
     await this.chef.withdraw(1, '200', { from: carol }) //201
     assert.equal((await this.lucky.balanceOf(alice)).toString(), '14166666666666666666666')
     assert.equal((await this.lucky.balanceOf(carol)).toString(), '2833333333333333333533')
-    assert.equal((await this.lucky.balanceOf(dev)).toString(), '2124999999999999999999')
+    assert.equal((await this.lucky.balanceOf(dev)).toString(), '2354499999999999999999')
   })
 
   it('can not deposit before farm starts', async () => {
