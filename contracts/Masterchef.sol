@@ -74,6 +74,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+    // check if the poolID was already added.
+    mapping(address => bool) public isAddedPool;
     // Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
     // The block number when lucky mining starts.
@@ -90,8 +92,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
     event LuckyPerBlockUpdated(address indexed caller, uint256 previousAmount, uint256 newAmount);
     event RewardLockedUp(address indexed user, uint256 indexed pid, uint256 amountLockedUp);
     event RewardPaid(address indexed user,uint256 indexed totalRewards);
-    event PoolAdded(IERC20 lpToken,uint256 allocPoint,uint256 harvestTimestamp, uint256 farmStartTimestamp);
-    event PoolSet(uint256 pid,uint256 allocPoint,uint256 harvestTimestampInUnix, uint256 farmStartTimestampInUnix);
+    event PoolAdded(IERC20 indexed lpToken,uint256 indexed allocPoint,uint256 harvestTimestamp, uint256 farmStartTimestamp);
+    event PoolSet(uint256 indexed pid,uint256 indexed allocPoint,uint256 harvestTimestampInUnix, uint256 farmStartTimestampInUnix);
+    event MigratorSet(IMigratorChef indexed oldMigrator, IMigratorChef indexed migrator);
+    event DevAddressSet(address indexed oldDevAddress,address indexed _devAddress);
     
     constructor(
         LuckyToken _lucky,
@@ -114,8 +118,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
         transferOwnership(owner_);
 
         //add the pools
-        add(40000,luckyBusd,_harvestIntervalInMinutes,_farmStartIntervalInMinutes,true); 
-        add(8000,lucky,_harvestIntervalInMinutes,_farmStartIntervalInMinutes,true);
+        add(40000,luckyBusd,_harvestIntervalInMinutes,_farmStartIntervalInMinutes); 
+        add(8000,lucky,_harvestIntervalInMinutes,_farmStartIntervalInMinutes);
     }
 
     function poolLength() external view returns (uint256) {
@@ -125,12 +129,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
     //note that 1x equals 1000 alloc point at the beginning.
-    function add(uint256 _allocPoint, IERC20 _lpToken, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
+    function add(uint256 _allocPoint, IERC20 _lpToken, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes) public onlyOwner {
+        require(!isAddedPool[address(_lpToken)], "add: Duplicated LP Token");
         uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
         uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        massUpdatePools();
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolInfo.push(PoolInfo({
@@ -142,15 +145,14 @@ contract MasterChef is Ownable, ReentrancyGuard {
             farmStartDate : _farmStartTimestampInUnix
         }));
         emit PoolAdded(_lpToken,_allocPoint,_harvestTimestampInUnix,_farmStartTimestampInUnix);
+        isAddedPool[address(_lpToken)] = true;
     }    
 
     // Update the given pool's lucky allocation point. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes, bool _withUpdate) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, uint256 _harvestIntervalInMinutes,uint256 _farmStartIntervalInMinutes) external onlyOwner {
         uint256 _harvestTimestampInUnix = block.timestamp + (_harvestIntervalInMinutes *60); //*60 to convert from minutes to second.
         uint256 _farmStartTimestampInUnix = block.timestamp + (_farmStartIntervalInMinutes *60);
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        massUpdatePools();
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].harvestTimestamp = _harvestTimestampInUnix;
@@ -193,20 +195,23 @@ contract MasterChef is Ownable, ReentrancyGuard {
         }
     }
     // Set the migrator contract. Can only be called by the owner.
-    function setMigrator(IMigratorChef _migrator) public onlyOwner {
+    function setMigrator(IMigratorChef _migrator) external onlyOwner {
+        emit MigratorSet(migrator, _migrator);
         migrator = _migrator;
     }
 
     // Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
-    function migrate(uint256 _pid) public {
+    function migrate(uint256 _pid) external {
         require(address(migrator) != address(0), "migrate: no migrator");
         PoolInfo storage pool = poolInfo[_pid];
         IERC20 lpToken = pool.lpToken;
         uint256 bal = lpToken.balanceOf(address(this));
         lpToken.safeApprove(address(migrator), bal);
         IERC20 newLpToken = migrator.migrate(lpToken);
+        require(!isAddedPool[address(newLpToken)], "migrate: Duplicated LP Token");
         require(bal == newLpToken.balanceOf(address(this)), "migrate: bad");
         pool.lpToken = newLpToken;
+        isAddedPool[address(pool.lpToken)] = true;
     }
     
     // Update reward variables of the given pool to be up-to-date.
@@ -284,7 +289,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit LP tokens to MasterChef for lucky allocation.
-    function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
+    function deposit(uint256 _pid, uint256 _amount) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(pool.farmStartDate <= block.timestamp,"unable to deposit before the farm starts.");
@@ -295,15 +300,17 @@ contract MasterChef is Ownable, ReentrancyGuard {
         updatePool(_pid);
         payOrLockupPendingLucky(_pid);
         if (_amount > 0) {
+            uint256 currentBal = pool.lpToken.balanceOf(address(this));
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.amount = user.amount.add(_amount);
+            uint256 receivedAmount = pool.lpToken.balanceOf(address(this)) - currentBal;
+            user.amount = user.amount.add(receivedAmount);
         }
         user.rewardDebt = user.amount.mul(pool.accLuckyPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
+    function withdraw(uint256 _pid, uint256 _amount) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -318,7 +325,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public nonReentrant {
+    function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 amount = user.amount;
@@ -360,13 +367,20 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Update dev address by the previous dev.
-    function setDevAddress(address _devAddress) public onlyOwner{
+    function setDevAddress(address _devAddress) external onlyOwner{
         require(_devAddress != address(0), "setDevAddress: ZERO");
+        emit DevAddressSet(devAddress,_devAddress);
         devAddress = _devAddress;
     }
 
+    //transfer lucky ownership to the new owner for migration
+    function transferLuckyOwnership(address newOwner) external onlyOwner {
+        require(newOwner!=address(0),"Ownable: new owner is the zero address");
+        lucky.transferOwnership(newOwner);
+    }
+
     // Pancake has to add hidden dummy pools in order to alter the emission, here we make it simple and transparent to all.
-    function updateLuckyPerBlock(uint256 _luckyPerBlock) public onlyOwner {
+    function updateLuckyPerBlock(uint256 _luckyPerBlock) external onlyOwner {
         massUpdatePools();
         emit LuckyPerBlockUpdated(msg.sender, luckyPerBlock, _luckyPerBlock);
         //this is the new one
